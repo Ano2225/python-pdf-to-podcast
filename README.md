@@ -4,6 +4,6 @@ Take a PDF file → Summarize its contents → Generate a short dialogue between
 
 🛠️ Minimal Tech Stack:
 Python (simple backend)
-Vertex AI Gemini 2.0 Flash (resume + dialog JSON generation)
+Vertex AI  (resume + dialog JSON generation)
 Google Text-to-Speech API (realistic voices)
 pydub (merge audio files)

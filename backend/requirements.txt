@@ -1,0 +1,6 @@
+PyMuPDF
+google-cloud-aiplatform
+google-cloud-texttospeech
+pydub
+flask
+python-dotenv
