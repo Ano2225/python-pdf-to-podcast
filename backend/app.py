@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify,send_from_directory
 import os
 from dotenv import load_dotenv
 import datetime
@@ -52,6 +52,10 @@ if not os.path.exists(config.UPLOADS_DIR):
 if not os.path.exists(config.AUDIO_DIR):
     os.makedirs(config.AUDIO_DIR)
 
+@app.route('/', methods=['GET'])
+def hello():
+    return "Hello everyone"
+
 @app.route('/upload-pdf', methods=['POST'])
 def upload_pdf():
     if 'pdf_file' not in request.files:
@@ -75,11 +79,11 @@ def upload_pdf():
             # Generate dialogue using Vertex AI
             try:
                 prompt = f"""
-                Based on the following text from the PDF, create a short dialogue between two characters.
-                The dialogue should discuss the main topic of the text and the key ideas presented.
-                The dialogue should be around 10 to 15 exchanges (turns).
-                Give names to the two characters (e.g., 'Amina' and 'David').
-                Format the dialogue as follows, with the character's name followed by a colon:
+                À partir du texte suivant extrait du PDF, créez un court dialogue entre deux personnages.
+                Le dialogue doit discuter du sujet principal du texte et des idées clés présentées.
+                Le dialogue doit comporter environ 10 à 15 échanges (répliques).
+                Donnez des noms aux deux personnages (par exemple, 'Amina' et 'David').
+                Formatez le dialogue comme suit, avec le nom du personnage suivi de deux-points :
 
                 Amina: ...
                 David: ...
@@ -88,11 +92,11 @@ def upload_pdf():
                 ...
 
                 ---
-                PDF Text:
+                Texte extrait du PDF :
                 {extracted_text}
                 ---
 
-                Dialogue:
+                Dialogue :
                 Amina:
                 """
 
@@ -152,5 +156,19 @@ def upload_pdf():
 
     return jsonify({"error": "An unknown error occurred"}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+@app.route('/podcast_generated/<filename>')
+def serve_podcast(filename):
+    # Cette route sert les fichiers depuis le dossier 'podcast_generated'.
+    # Nous utilisons un chemin absolu pour plus de robustesse.
+    podcast_directory = os.path.join(app.root_path, config.AUDIO_DIR) # Utilisation de app.root_path
+    print(f"Attempting to serve file: {filename} from directory: {podcast_directory}") # Ligne de débogage
+    try:
+        return send_from_directory(podcast_directory, filename)
+    except Exception as e:
+        print(f"Erreur lors du service du fichier {filename} depuis {podcast_directory}: {e}")
+        return "Fichier non trouvé", 404
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
