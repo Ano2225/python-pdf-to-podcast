@@ -1,6 +1,5 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { IconSymbol } from '@/components/ui/IconSymbol';
 import { PodcastProvider } from '../PodcastContext';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -12,14 +11,14 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Accueil',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+            tabBarIcon: ({ color }) => <MaterialIcons size={28} name="house" color={color} />,
           }}
         />
       <Tabs.Screen
           name="upload"
           options={{
             title: 'Televerser un fichier',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="cloud.fog" color={color} />,
+            tabBarIcon: ({ color }) => <MaterialIcons size={28} name="cloud" color={color} />,
           }}
         />
 

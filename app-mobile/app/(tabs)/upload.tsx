@@ -1,13 +1,15 @@
-import React, { FC, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, GestureResponderEvent, Alert, ActivityIndicator } from 'react-native';
+import React, { FC, useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
-import { usePodcastContext } from '../PodcastContext'; 
+import { usePodcastContext } from '../PodcastContext';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const UploadScreen: FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [podcastFilename, setPodcastFilename] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
 
   const { addPodcast } = usePodcastContext();
 
@@ -16,9 +18,10 @@ const UploadScreen: FC = () => {
       await sound.unloadAsync();
       setSound(null);
     }
-    const backendBaseUrl = 'http://172.20.10.3:5000'; 
+    // *** IMPORTANT: Replace with the CORRECT local IP address of your computer and the Flask port ***
+    const backendBaseUrl = 'http://172.20.10.3:5000';
     const podcastUrl = `${backendBaseUrl}/podcast_generated/${filename}`;
-    console.log('Chargement du son depuis :', podcastUrl);
+    console.log('Loading sound from:', podcastUrl);
     try {
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: podcastUrl },
@@ -28,50 +31,53 @@ const UploadScreen: FC = () => {
 
       newSound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
-          newSound.unloadAsync(); 
+          newSound.unloadAsync();
           setSound(null);
         }
       });
 
-      console.log('Lecture du son');
+      console.log('Playing sound');
       await newSound.playAsync();
     } catch (error) {
-      console.error('Erreur lors du chargement ou de la lecture du son :', error);
-      Alert.alert('Erreur de Lecture', 'Impossible de lire le podcast.');
+      console.error('Error loading or playing sound:', error);
+      Alert.alert('Playback Error', 'Unable to play the podcast.');
     }
   }
 
   async function stopSound() {
     if (sound) {
-      console.log('Arrêt du son');
+      console.log('Stopping sound');
       await sound.stopAsync();
       await sound.unloadAsync();
       setSound(null);
     }
   }
 
-  const handleUploadPDF = async (event: GestureResponderEvent) => {
+  const handleUploadPDF = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf', 
-        copyToCacheDirectory: false, 
+        type: 'application/pdf',
+        copyToCacheDirectory: false,
       });
 
       if (result.canceled === false) {
         const fileUri = result.assets ? result.assets[0].uri : null;
+        const fileName = result.assets ? result.assets[0].name : 'file.pdf';
 
         if (fileUri) {
           setLoading(true);
-          setPodcastFilename(null); 
+          setPodcastFilename(null);
+          setSelectedFileName(fileName);
 
           const formData = new FormData();
           formData.append('pdf_file', {
             uri: fileUri,
-            name: result.assets ? result.assets[0].name : 'file.pdf',
+            name: fileName,
             type: 'application/pdf',
           } as any);
 
-          const backendBaseUrl = 'http://172.20.10.3:5000'; 
+          // *** IMPORTANT: Replace with the CORRECT local IP address of your computer and the Flask port ***
+          const backendBaseUrl = 'http://172.20.10.3:5000';
           const uploadUrl = `${backendBaseUrl}/upload-pdf`;
 
           try {
@@ -84,47 +90,49 @@ const UploadScreen: FC = () => {
             });
 
             setLoading(false);
+            setSelectedFileName(null);
 
             if (response.ok) {
               const responseData = await response.json();
-              console.log('Envoi réussi ! Réponse du backend :', responseData);
-              Alert.alert('Succès', 'Le fichier PDF a été traité et le podcast généré !');
+              console.log('Upload successful! Backend response:', responseData);
+              Alert.alert('Success', 'The PDF file has been processed and the podcast generated!');
 
               const generatedFilename = responseData.podcast_filename;
               if (generatedFilename) {
-                setPodcastFilename(generatedFilename); 
-
+                setPodcastFilename(generatedFilename);
                 addPodcast(generatedFilename);
               } else {
-                Alert.alert('Erreur', 'Le nom du fichier podcast n\'a pas été reçu du backend.');
+                Alert.alert('Error', 'The podcast filename was not received from the backend.');
               }
 
             } else {
               const errorData = await response.text();
-              console.error('Échec de l\'envoi. Statut :', response.status, 'Réponse:', errorData);
-              Alert.alert('Erreur', `Échec de l'envoi du fichier. Statut: ${response.status}\nRéponse: ${errorData}`);
+              console.error('Upload failed. Status:', response.status, 'Response:', errorData);
+              Alert.alert('Error', `File upload failed. Status: ${response.status}\nResponse: ${errorData}`);
             }
           } catch (uploadError) {
             setLoading(false);
-            console.error('Erreur lors de l\'envoi du fichier :', uploadError);
-            Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi du fichier.');
+            setSelectedFileName(null);
+            console.error('Error uploading file:', uploadError);
+            Alert.alert('Error', 'An error occurred while uploading the file.');
           }
         } else {
-          Alert.alert('Erreur', 'Impossible d\'obtenir l\'URI du fichier sélectionné.');
+          Alert.alert('Error', 'Unable to get the URI of the selected file.');
         }
       } else {
-        console.log('Sélection de fichier annulée.');
+        console.log('File selection cancelled.');
+        setSelectedFileName(null);
       }
     } catch (err) {
-      console.error('Erreur lors de la sélection du document :', err);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la sélection du fichier.');
+      console.error('Error during document selection:', err);
+      Alert.alert('Error', 'An error occurred during file selection.');
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     return sound
       ? () => {
-          console.log('Déchargement du son');
+          console.log('Unloading sound');
           sound.unloadAsync();
         }
       : undefined;
@@ -132,33 +140,40 @@ const UploadScreen: FC = () => {
 
   return (
     <View style={styles.container}>
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text style={styles.loadingText}>Traitement du PDF en cours...</Text>
-        </View>
-      ) : (
-        <>
-          <Text style={styles.title}>Envoyer un PDF</Text>
-          <TouchableOpacity style={styles.button} onPress={handleUploadPDF}>
-            <Text style={styles.buttonText}>Sélectionner un PDF</Text>
-          </TouchableOpacity>
+      <Text style={styles.title}>Convertir un PDF en podcast</Text>
+      <Text style={styles.subtitle}>Selectionner un fichier PDF pour generer votre podcast.</Text>
 
-          {podcastFilename && (
-            <View style={styles.podcastContainer}>
-              <Text style={styles.podcastText}>Podcast Généré:</Text>
-              <Text style={styles.podcastFilename}>{podcastFilename}</Text>
-              <View style={styles.audioControls}>
-                <TouchableOpacity style={styles.audioButton} onPress={() => playSound(podcastFilename)}>
-                  <Text style={styles.buttonText}>Lire</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.audioButton} onPress={stopSound}>
-                  <Text style={styles.buttonText}>Arrêter</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </>
+      <TouchableOpacity
+        style={styles.uploadButton}
+        onPress={handleUploadPDF}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <View style={styles.buttonContent}>
+            <MaterialIcons name="file-upload" size={24} color="#fff" />
+            <Text style={styles.buttonText}>
+              {selectedFileName ? `Selectionné: ${selectedFileName}` : 'Selectionner un PDF'}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Traitement en cours...</Text>
+        </View>
+      )}
+
+      {podcastFilename && (
+        <View style={styles.podcastContainer}>
+          <Text style={styles.podcastGeneratedText}>Podcast Generé !</Text>
+          <TouchableOpacity style={styles.playButton} onPress={() => playSound(podcastFilename)}>
+            <MaterialIcons name="play-circle-outline" size={30} color="#fff" />
+            <Text style={styles.playButtonText}>Lire</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -167,63 +182,78 @@ const UploadScreen: FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#000',
     alignItems: 'center',
-    justifyContent: 'center',
     padding: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
+    color: '#fff',
     marginBottom: 20,
+    marginTop: 50,
+    textAlign:'center',
   },
-  button: {
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
+  subtitle: {
+    fontSize: 16,
+    color: '#ffff',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  uploadButton: {
+    backgroundColor: '#3498db',
+    padding: 15,
+    borderRadius: 10,
     marginTop: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    textAlign: 'center',
+    fontWeight: 'bold',
+    marginLeft: 10,
   },
   loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    justifyContent: 'center',
+    marginTop: 20,
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 1,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 0,
+    marginLeft: 10,
     fontSize: 16,
-    color: '#0000ff',
+    color: '#7f8c8d',
   },
   podcastContainer: {
-    marginTop: 30,
+    marginTop: 40,
     alignItems: 'center',
   },
-  podcastText: {
+  podcastGeneratedText: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
+    color: '#27ae60',
+    marginBottom: 15,
   },
-  podcastFilename: {
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  audioControls: {
+  playButton: {
+    backgroundColor: '#27ae60',
+    padding: 15,
+    borderRadius: 10,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '80%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '60%',
   },
-  audioButton: {
-    backgroundColor: '#28a745',
-    padding: 10,
-    borderRadius: 5,
-    width: '45%',
+  playButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
   },
 });
 

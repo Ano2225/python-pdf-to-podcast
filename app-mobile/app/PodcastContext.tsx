@@ -1,30 +1,62 @@
-import React, { createContext, useState, ReactNode } from 'react';
+import React, { createContext, useState, ReactNode, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Define the type for a podcast (more info can be added later, such as date, etc.)
 interface Podcast {
   filename: string;
 }
 
-// Define the type for the context
 interface PodcastContextType {
   podcasts: Podcast[];
   addPodcast: (filename: string) => void;
 }
 
-// Create the context with default values (to be replaced by the Provider)
 const PodcastContext = createContext<PodcastContextType | undefined>(undefined);
 
-// Create a Provider component that will wrap components needing access to the context
 interface PodcastProviderProps {
   children: ReactNode;
 }
 
 export const PodcastProvider: React.FC<PodcastProviderProps> = ({ children }) => {
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // useEffect to load podcasts from AsyncStorage when the component mounts
+  useEffect(() => {
+    const loadPodcasts = async () => {
+      try {
+        const storedPodcasts = await AsyncStorage.getItem('podcasts');
+        if (storedPodcasts !== null) {
+          setPodcasts(JSON.parse(storedPodcasts));
+        }
+      } catch (error) {
+        console.error('Error loading podcasts from AsyncStorage:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPodcasts();
+  }, []);
+
+  // useEffect to save podcasts to AsyncStorage whenever the 'podcasts' state changes
+  useEffect(() => {
+    const savePodcasts = async () => {
+      if (!loading) {
+        try {
+          await AsyncStorage.setItem('podcasts', JSON.stringify(podcasts));
+        } catch (error) {
+          console.error('Error saving podcasts to AsyncStorage:', error);
+        }
+      }
+    };
+
+    savePodcasts();
+  }, [podcasts, loading]);
 
   // Function to add a new podcast to the list
   const addPodcast = (filename: string) => {
-    const newPodcast: Podcast = { filename };
+    const newPodcast: Podcast = {
+        filename    };
     setPodcasts((prevPodcasts) => [...prevPodcasts, newPodcast]);
   };
 
@@ -41,7 +73,7 @@ export const PodcastProvider: React.FC<PodcastProviderProps> = ({ children }) =>
   );
 };
 
-// Custom hook to easily use the context in components
+// Custom hook to use the context easily in components
 export const usePodcastContext = () => {
   const context = React.useContext(PodcastContext);
   if (context === undefined) {
